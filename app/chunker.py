@@ -5,8 +5,8 @@ import tiktoken
 from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-CHUNK_SIZE_TOKENS = 400
-CHUNK_OVERLAP_TOKENS = 80
+CHUNK_SIZE_TOKENS = 512
+CHUNK_OVERLAP_TOKENS = 100
 
 ENCODER = tiktoken.get_encoding("cl100k_base")
 

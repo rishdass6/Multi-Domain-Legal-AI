@@ -1,3 +1,7 @@
+"""
+Master dataset build script — CUAD only.
+"""
+
 import os
 import json
 import glob
@@ -9,7 +13,6 @@ from app.chunker import chunk_all_documents, save_chunks_to_jsonl, count_tokens
 
 RAW_DIRS = {
     "cuad": "data/raw/cuad",
-    "lii": "data/raw/lii",
 }
 OUTPUT_DIR = "data/processed"
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "chunks.jsonl")
@@ -17,7 +20,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def load_raw_documents(raw_dir: str) -> list:
-    """Load all JSON files from a raw data directory."""
     pattern = os.path.join(raw_dir, "*.json")
     files = sorted(glob.glob(pattern))
     docs = []
@@ -33,27 +35,17 @@ def load_raw_documents(raw_dir: str) -> list:
 
 def build_dataset():
     print("=" * 60)
-    print("LEGAL QA DATASET BUILD")
+    print("LEGAL QA DATASET BUILD — CUAD ONLY")
     print("=" * 60)
 
     all_docs = []
 
-    # ── Load CUAD ────────────────────────────────────────────────
     print("\n[1/4] Loading CUAD contracts...")
     cuad_docs = load_raw_documents(RAW_DIRS["cuad"])
     print(f"      Loaded {len(cuad_docs)} raw contracts")
     all_docs.extend(cuad_docs)
 
-    # ── Load LII ─────────────────────────────────────────────────
-    print("\n[2/4] Loading Cornell LII pages...")
-    lii_docs = load_raw_documents(RAW_DIRS["lii"])
-    print(f"      Loaded {len(lii_docs)} raw LII pages")
-    all_docs.extend(lii_docs)
-
-    print(f"\n      Total raw documents: {len(all_docs)}")
-
-    # ── Clean ────────────────────────────────────────────────────
-    print("\n[3/4] Cleaning documents...")
+    print("\n[2/4] Cleaning documents...")
     cleaned_docs = []
     skipped = 0
     for doc in tqdm(all_docs, desc="Cleaning"):
@@ -65,14 +57,12 @@ def build_dataset():
             skipped += 1
 
     print(f"      Cleaned: {len(cleaned_docs)} documents")
-    print(f"      Skipped (too short after cleaning): {skipped}")
+    print(f"      Skipped: {skipped}")
 
-    # ── Chunk ────────────────────────────────────────────────────
-    print("\n[4/4] Chunking documents...")
+    print("\n[3/4] Chunking documents...")
     all_chunks = chunk_all_documents(cleaned_docs)
     print(f"      Generated {len(all_chunks)} total chunks")
 
-    # ── Stats ────────────────────────────────────────────────────
     print("\n── Dataset Statistics ──────────────────────────────────")
     source_counts = defaultdict(int)
     token_totals = defaultdict(int)
@@ -88,24 +78,14 @@ def build_dataset():
     print(f"\n  Total tokens in corpus: {total_tokens:,}")
     print(f"  Avg tokens per chunk:   {total_tokens // len(all_chunks) if all_chunks else 0}")
 
-    # ── Save ─────────────────────────────────────────────────────
     print(f"\n── Saving to {OUTPUT_PATH} ──")
     save_chunks_to_jsonl(all_chunks, OUTPUT_PATH)
 
-    print("\n✓ Phase 2 complete. Ready for Phase 3 (Embedding + FAISS).")
-    print(f"  Output: {OUTPUT_PATH}")
+    print("\n✓ Dataset build complete.")
     return all_chunks
 
 
 if __name__ == "__main__":
     chunks = build_dataset()
-
-    # Show a sample chunk for verification
-    print("\n── Sample Chunk ───────────────────────────────────────")
     sample = chunks[0]
-    print(f"  chunk_id:    {sample['chunk_id']}")
-    print(f"  source:      {sample['source']}")
-    print(f"  domain:      {sample['domain']}")
-    print(f"  token_count: {sample['token_count']}")
-    print(f"  title:       {sample['title'][:60]}")
-    print(f"  text[:300]:  {sample['text'][:300]}")
+    print(f"\nSample chunk: {sample['text'][:300]}")
