@@ -59,9 +59,21 @@ def clean_lii_text(text: str) -> str:
     LII-specific cleaning.
     LII text is already fairly clean (HTML-parsed), mostly needs
     whitespace normalization and removal of nav artifacts.
+
+    Two noise patterns dominate LII Wex pages and must be stripped before
+    embedding, otherwise the trailing category cross-link tags
+    ("law and economics", "criminal procedure", …) leak into chunks and
+    drag retrieval toward category-name matches rather than substantive
+    definitions:
+      1. "Read more about <topic>"  — closing CTA link
+      2. "[Last reviewed in <month> of <year> by the Wex Definitions Team ]"
+         followed by a list of category tags through end of doc.
+    Each marker appears at most once per doc, so DOTALL-stripping from
+    the marker through end-of-text is safe.
     """
-    # Remove common LII nav text that bleeds into content
     nav_patterns = [
+        r"\[Last reviewed.*",          # strips the review tag + trailing categories
+        r"Read more about.*",          # strips the CTA + anything after it
         r"Further Reading.*$",
         r"See also:.*",
         r"Retrieved from.*",
@@ -92,21 +104,30 @@ def clean_document(text: str, source: str) -> Optional[str]:
     """
     Master cleaning function. Routes to source-specific cleaner.
     Returns None if the document is too short to be useful after cleaning.
+
+    Min-length threshold is source-dependent: LII Wex glossary entries are
+    short by design (e.g. "A/R is the abbreviation for accounts receivable")
+    and remain high-precision retrieval targets, so they get a lower bar
+    than full CUAD contracts.
     """
     if not text or not text.strip():
         return None
 
-    if "CUAD" in source or "cuad" in source.lower():
+    source_lower = source.lower() if source else ""
+    is_lii = "lii" in source_lower or "cornell" in source_lower
+
+    if "cuad" in source_lower:
         cleaned = clean_cuad_text(text)
-    elif "LII" in source or "Cornell" in source:
+        min_words = 50
+    elif is_lii:
         cleaned = clean_lii_text(text)
+        min_words = 8
     else:
-        # Generic fallback
         cleaned = normalize_unicode(text)
         cleaned = normalize_whitespace(cleaned)
+        min_words = 50
 
-    # Reject documents that are too short after cleaning
-    if len(cleaned.split()) < 50:
+    if len(cleaned.split()) < min_words:
         return None
 
     return cleaned

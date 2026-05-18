@@ -1,5 +1,5 @@
 """
-Master dataset build script — CUAD only.
+Master dataset build script — CUAD + LII Wex.
 """
 
 import os
@@ -13,13 +13,20 @@ from app.chunker import chunk_all_documents, save_chunks_to_jsonl, count_tokens
 
 RAW_DIRS = {
     "cuad": "data/raw/cuad",
+    "lii": "data/raw/lii",
 }
 OUTPUT_DIR = "data/processed"
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "chunks.jsonl")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def load_raw_documents(raw_dir: str) -> list:
+def load_raw_documents(raw_dir: str, source_label: str) -> list:
+    """
+    Load raw docs and normalize the source field to a short canonical label
+    ("cuad", "lii", …). Raw LII files ship with source="Cornell LII Wex";
+    storing that verbatim would break downstream source-equality checks and
+    UI filters. We keep the original under `source_raw` for traceability.
+    """
     pattern = os.path.join(raw_dir, "*.json")
     files = sorted(glob.glob(pattern))
     docs = []
@@ -27,6 +34,10 @@ def load_raw_documents(raw_dir: str) -> list:
         with open(filepath, "r", encoding="utf-8") as f:
             try:
                 doc = json.load(f)
+                if doc.get("source") and doc["source"] != source_label:
+                    doc["source_raw"] = doc["source"]
+                doc["source"] = source_label
+                doc.setdefault("domain", "legal")
                 docs.append(doc)
             except json.JSONDecodeError as e:
                 print(f"  Skipping malformed file {filepath}: {e}")
@@ -35,15 +46,19 @@ def load_raw_documents(raw_dir: str) -> list:
 
 def build_dataset():
     print("=" * 60)
-    print("LEGAL QA DATASET BUILD — CUAD ONLY")
+    print("LEGAL QA DATASET BUILD — CUAD + LII Wex")
     print("=" * 60)
 
     all_docs = []
 
-    print("\n[1/4] Loading CUAD contracts...")
-    cuad_docs = load_raw_documents(RAW_DIRS["cuad"])
-    print(f"      Loaded {len(cuad_docs)} raw contracts")
+    print("\n[1/4] Loading raw documents...")
+    cuad_docs = load_raw_documents(RAW_DIRS["cuad"], "cuad")
+    print(f"      Loaded {len(cuad_docs)} CUAD contracts")
     all_docs.extend(cuad_docs)
+
+    lii_docs = load_raw_documents(RAW_DIRS["lii"], "lii")
+    print(f"      Loaded {len(lii_docs)} LII Wex entries")
+    all_docs.extend(lii_docs)
 
     print("\n[2/4] Cleaning documents...")
     cleaned_docs = []
